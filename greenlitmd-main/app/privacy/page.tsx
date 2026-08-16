@@ -11,6 +11,10 @@ export default function PrivacyPage() {
       <p className="text-slate-600 text-sm leading-7">
         The only data retained by Orthren is standard user account information (such as email addresses) required for authentication and waitlist communications. We do not sell your data to third parties.
       </p>
+      <p className="text-slate-600 text-sm leading-7 mt-4">
+        For the full picture of what we receive and how we de-identify it, see{" "}
+        <a href="/security" className="text-clinical-blue underline">How we handle your data</a>.
+      </p>
     </main>
   )
 }

@@ -2,7 +2,7 @@
 // Run with: npx tsx scripts/billing-usage-check.ts
 
 import { summarizeUsage, currentBillingPeriod } from "../lib/billing/usage";
-import { groupPriceForSurgeons } from "../lib/pricing";
+import { monthlyPriceForCases } from "../lib/pricing";
 
 let failures = 0;
 
@@ -37,10 +37,21 @@ check("zero-case surgeon shows 0, not undefined", summary.perSurgeon.find((s) =>
 check("inactive surgeon excluded from activeSurgeonCount", summary.activeSurgeonCount === 2);
 check("totalCases sums all surgeons including inactive", summary.totalCases === 4);
 check(
-  "amountCents matches groupPriceForSurgeons(activeSurgeonCount) in cents",
-  summary.amountCents === groupPriceForSurgeons(2) * 100
+  "amountCents matches monthlyPriceForCases(totalCases) in cents",
+  summary.amountCents === monthlyPriceForCases(4) * 100
 );
-check("empty input produces $0 base price, not a crash", summarizeUsage([], [], period).amountCents === groupPriceForSurgeons(0) * 100);
+check("platformFeeCents is the flat $500 fee regardless of volume", summary.platformFeeCents === 50000);
+check("caseChargeCents is $50 per packet", summary.caseChargeCents === 4 * 50 * 100);
+check("headcount no longer drives price — 0 vs 2 active surgeons, same case count, same amount", (() => {
+  const zeroActive = summarizeUsage(
+    surgeons.map((s) => ({ ...s, active: false })),
+    cases,
+    period
+  );
+  return zeroActive.amountCents === summary.amountCents;
+})());
+check("empty input produces the $500 platform-fee floor, not a crash", summarizeUsage([], [], period).amountCents === monthlyPriceForCases(0) * 100);
+check("zero-case org is billed exactly the platform fee", summarizeUsage([], [], period).amountCents === 50000);
 
 const { start, end } = currentBillingPeriod(new Date("2026-07-19T12:00:00Z"));
 check("currentBillingPeriod resolves to calendar month start", start.toISOString() === "2026-07-01T00:00:00.000Z");

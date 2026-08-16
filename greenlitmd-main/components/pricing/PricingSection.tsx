@@ -2,25 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { SOLO_PRICE, GROUP_BASE_PRICE, GROUP_PRICE_PER_SURGEON, CONTACT_FALLBACK_EMAIL } from "@/lib/pricing";
-
-const PRICING_FEATURES = [
-  "AI-assisted Letter of Medical Necessity",
-  "PA Strength Score with inline fix suggestions",
-  "Denial risk flagging before submission",
-  "20+ orthopedic CPT codes (TKA, THA, rotator cuff, spine, shoulder)",
-  "All major payers supported",
-  "Sub-60-second turnaround",
-  "Submission-ready DOCX download",
-  "Multiple staff logins (PA coordinators + front desk)",
-  "Dedicated onboarding call + setup support",
-  "Priority email support",
-];
+import { PRICING_TIERS, CONTACT_FALLBACK_EMAIL, monthlyPriceForCases } from "@/lib/pricing";
 
 const FAQS = [
   {
-    q: "Is this HIPAA compliant?",
-    a: "Yes. Orthren uses a de-identification layer that strips all 18 HIPAA identifiers before any AI processing occurs. Infrastructure-level compliance is enforced through our hosting and data handling architecture.",
+    q: "How do you handle PHI?",
+    a: "Charts reach our server intact and are processed in memory only — never persisted. All 18 HIPAA identifiers are stripped by two independent de-identification layers before any AI call. See our data handling page for the full posture.",
   },
   {
     q: "Does my surgeon need to review everything?",
@@ -32,11 +19,11 @@ const FAQS = [
   },
   {
     q: "What if a PA gets denied?",
-    a: "The PA Strength Score and denial risk flagging are designed to catch documentation gaps before submission — reducing denials at the source. Automated denial appeal support is on the roadmap.",
+    a: "The PA Strength Score and denial risk flagging catch documentation gaps before submission. If a denial still comes back, paste the payer's reason in and Orthren generates chart-grounded rebuttal points and criteria citations for a peer-to-peer call or written appeal.",
   },
   {
     q: "Is there a long-term contract?",
-    a: "No. Month-to-month on all plans. Annual billing is available at a discount. Cancel anytime.",
+    a: "No. Month-to-month. Cancel anytime.",
   },
   {
     q: "Does it work with my payer?",
@@ -110,16 +97,16 @@ function IconCheck() {
   );
 }
 
-export default function PricingSection() {
-  const [isAnnual, setIsAnnual] = useState(false);
-  const [paPerWeek, setPaPerWeek] = useState(20);
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [surgeonCount, setSurgeonCount] = useState(1);
+const BASELINE_DENIAL_RATE = 0.09; // 8–10% industry baseline, midpoint
+const AVG_CASE_VALUE = 32500; // midpoint of the $15k–$50k industry est. cited above
 
-  const price =
-    surgeonCount === 1 ? SOLO_PRICE : GROUP_BASE_PRICE + GROUP_PRICE_PER_SURGEON * surgeonCount;
-  const annualPrice = isAnnual ? Math.round((price * 10) / 12) : price;
-  const roiResult = `$${Math.round(paPerWeek * 4.33 * 16).toLocaleString()}/mo`;
+export default function PricingSection() {
+  const [packetsPerMonth, setPacketsPerMonth] = useState(20);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  const practiceTier = PRICING_TIERS.find((t) => t.id === "practice")!;
+  const price = monthlyPriceForCases(packetsPerMonth);
+  const exposedRevenue = Math.round(packetsPerMonth * BASELINE_DENIAL_RATE * AVG_CASE_VALUE);
 
   function handleFaqClick(index: number) {
     setOpenFaq(openFaq === index ? null : index);
@@ -134,104 +121,69 @@ export default function PricingSection() {
           Pricing
         </p>
         <h1 className="mx-auto max-w-[520px] text-3xl font-bold tracking-tight text-clinical-navy sm:text-4xl leading-snug">
-          Prior auth denials cost your practice $15K–$50K each. We help prevent them.
+          Prior auth denials cost your practice $15K–$50K each. We help prevent — and recover — them.
         </h1>
         <p className="mt-4 text-slate-500 text-sm sm:text-base max-w-md mx-auto leading-relaxed">
-          Predictable costs that scale with your practice — no per-submission fees or surprise charges.
+          A flat platform fee plus a per-packet rate. You pay for packets, not seats.
         </p>
       </section>
 
-      {/* 2. Billing toggle */}
-      <div className="flex items-center justify-center gap-3 pb-10">
-        <span className={`text-sm ${!isAnnual ? "text-slate-900 font-medium" : "text-slate-400"}`}>
-          Monthly
-        </span>
-        <button
-          onClick={() => setIsAnnual(!isAnnual)}
-          role="switch"
-          aria-checked={isAnnual}
-          aria-label="Toggle annual billing"
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-clinical-blue focus:ring-offset-2 ${
-            isAnnual ? "bg-clinical-navy" : "bg-slate-200"
-          }`}
-        >
-          <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-              isAnnual ? "translate-x-6" : "translate-x-1"
-            }`}
-          />
-        </button>
-        <span className={`text-sm ${isAnnual ? "text-slate-900 font-medium" : "text-slate-400"}`}>
-          Annual
-        </span>
-        <span className={`rounded-full border border-green-100 bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 transition-opacity ${isAnnual ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-          2 months free
-        </span>
-      </div>
-
-      {/* 3. Pricing card */}
+      {/* 2. Pricing card with packet-volume slider */}
       <section className="px-6 pb-16">
         <div className="mx-auto max-w-lg">
           <div className="relative rounded-2xl border-2 border-clinical-navy bg-white p-8 shadow-lg flex flex-col justify-between transition-all hover:shadow-xl hover:-translate-y-0.5">
             <span className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-clinical-navy px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-white shadow">
-              Simple, scalable pricing
+              Simple, volume-based pricing
             </span>
             <div>
               <h2 className="text-xl font-bold text-clinical-navy">
-                {surgeonCount === 1 ? "Solo practice" : `Practice (${surgeonCount} surgeons)`}
+                Practice plan
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                One plan that scales with your surgeon count
+                {practiceTier.priceLabel}
               </p>
 
               <div className="mt-6 flex items-center justify-between gap-4">
-                <label htmlFor="surgeon-count" className="text-sm text-slate-600">
-                  Surgeons:
+                <label htmlFor="packets-per-month" className="text-sm text-slate-600">
+                  PA packets per month:
                 </label>
                 <input
-                  id="surgeon-count"
+                  id="packets-per-month"
                   type="number"
-                  min={1}
-                  max={15}
+                  min={0}
+                  max={100}
                   step={1}
-                  value={surgeonCount}
+                  value={packetsPerMonth}
                   onChange={(e) => {
                     const next = Number(e.target.value);
                     if (Number.isNaN(next)) return;
-                    setSurgeonCount(Math.min(15, Math.max(1, next)));
+                    setPacketsPerMonth(Math.min(100, Math.max(0, next)));
                   }}
                   className="w-20 rounded-lg border border-slate-200 px-3 py-1.5 text-right text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-clinical-blue"
                 />
               </div>
               <input
                 type="range"
-                min={1}
-                max={15}
+                min={0}
+                max={100}
                 step={1}
-                value={surgeonCount}
-                onChange={(e) => setSurgeonCount(Number(e.target.value))}
+                value={packetsPerMonth}
+                onChange={(e) => setPacketsPerMonth(Number(e.target.value))}
                 className="mt-3 w-full accent-clinical-navy"
               />
 
               <div className="mt-6 flex items-baseline gap-1">
                 <span className="text-5xl font-extrabold tracking-tight text-slate-900">
-                  ${annualPrice}
+                  ${price.toLocaleString()}
                 </span>
                 <span className="text-sm font-semibold text-slate-500">/mo</span>
-                {isAnnual && (
-                  <span className="ml-1 text-sm text-slate-400 line-through">${price}</span>
-                )}
               </div>
-              {isAnnual ? (
-                <p className="mt-1 text-xs text-slate-400">
-                  Billed ${(price * 10).toLocaleString()}/year
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-transparent select-none">–</p>
-              )}
+              <p className="mt-1 text-xs text-slate-400">
+                $500 platform fee + $50 × {packetsPerMonth} packets
+              </p>
 
               <ul className="mt-8 space-y-3">
-                {PRICING_FEATURES.map((f) => (
+                {practiceTier.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-slate-600">
                     <span className="mt-0.5"><IconCheck /></span>
                     {f}
@@ -250,45 +202,28 @@ export default function PricingSection() {
         </div>
       </section>
 
-      {/* 4. ROI Calculator */}
+      {/* 3. Denial-exposure calculator */}
       <section className="px-6 pb-16">
         <div className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-slate-50 p-8">
           <div className="flex items-center gap-2 mb-6 text-clinical-navy">
             <IconCalculator />
             <h2 className="text-sm font-medium">
-              See what you&apos;re currently spending on PA submissions
+              See what denials are putting at risk each month
             </h2>
           </div>
 
-          <div className="flex items-center justify-between mb-2">
-            <label htmlFor="pa-slider" className="text-sm text-slate-600">
-              PAs submitted per week:
-            </label>
-            <span className="text-sm font-medium text-slate-900">{paPerWeek}</span>
-          </div>
-          <input
-            id="pa-slider"
-            type="range"
-            min={1}
-            max={100}
-            step={1}
-            value={paPerWeek}
-            onChange={(e) => setPaPerWeek(Number(e.target.value))}
-            className="w-full accent-clinical-navy"
-          />
-
-          <div className="mt-6 space-y-3">
+          <div className="mt-1 space-y-3">
             <div className="grid sm:grid-cols-2 gap-4 items-center">
               <div>
                 <p className="text-sm font-medium text-slate-700">
-                  Estimated monthly staff time cost
+                  Revenue exposed to denial
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
-                  At $16/submission industry average
+                  At an 8–10% industry baseline denial rate × $15k–$50k lost per denial (est., midpoints used)
                 </p>
               </div>
               <div className="sm:text-right">
-                <p className="text-2xl font-medium text-red-500">{roiResult}</p>
+                <p className="text-2xl font-medium text-red-500">${exposedRevenue.toLocaleString()}/mo</p>
               </div>
             </div>
             <div className="grid sm:grid-cols-2 gap-4 items-center">
@@ -297,23 +232,23 @@ export default function PricingSection() {
                   vs. Orthren
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
-                  Flat monthly rate — no per-submission fees
+                  Platform fee + per-packet rate at this volume
                 </p>
               </div>
               <div className="sm:text-right">
-                <p className="text-2xl font-medium text-green-600">${annualPrice}/mo</p>
+                <p className="text-2xl font-medium text-green-600">${price.toLocaleString()}/mo</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 5. Trust signals */}
+      {/* 4. Trust signals */}
       <section className="px-6 pb-14">
         <div className="mx-auto max-w-2xl flex flex-wrap items-center justify-center gap-6">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <span className="text-clinical-blue"><IconShieldCheck /></span>
-            HIPAA-compliant infrastructure
+            PHI de-identified before AI processing
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <span className="text-clinical-blue"><IconClock /></span>
@@ -326,7 +261,7 @@ export default function PricingSection() {
         </div>
       </section>
 
-      {/* 6. Payer compatibility */}
+      {/* 5. Payer compatibility */}
       <section className="px-6 pb-16 text-center">
         <p className="text-xs font-medium uppercase tracking-widest text-slate-400 mb-4">
           Works with:
@@ -343,7 +278,7 @@ export default function PricingSection() {
         </div>
       </section>
 
-      {/* 7. FAQ */}
+      {/* 6. FAQ */}
       <section className="px-6 pb-16 bg-slate-50 py-16">
         <div className="mx-auto max-w-2xl">
           <h2 className="text-center text-xl font-medium text-clinical-navy mb-8">
@@ -374,10 +309,10 @@ export default function PricingSection() {
         </div>
       </section>
 
-      {/* 8. Footer CTA strip */}
+      {/* 7. Footer CTA strip */}
       <section className="px-6 py-16 text-center border-t border-slate-200">
         <p className="text-sm text-slate-600">
-          Practice with 6–10 surgeons?{" "}
+          High-volume practice or multi-site group?{" "}
           <a
             href={`mailto:${CONTACT_FALLBACK_EMAIL}`}
             className="text-clinical-blue hover:underline"

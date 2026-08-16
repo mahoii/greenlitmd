@@ -2,16 +2,16 @@ import type { Metadata } from "next";
 import PricingCtaButton from "@/components/pricing/PricingCtaButton";
 import {
   PRICING_TIERS,
-  GROUP_WORKED_EXAMPLES,
-  GROUP_BASE_PRICE,
-  GROUP_PRICE_PER_SURGEON,
+  WORKED_EXAMPLES,
+  PLATFORM_FEE_MONTHLY,
+  PRICE_PER_CASE,
   CONTACT_FALLBACK_EMAIL,
   getPaymentLinkUrl,
 } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Pricing — Orthren",
-  description: "Simple, predictable pricing for orthopedic prior authorization packets.",
+  description: "Pricing for orthopedic prior authorization packets — you pay for packets, not seats.",
 };
 
 export default function PricingPage() {
@@ -22,10 +22,11 @@ export default function PricingPage() {
           Pricing
         </p>
         <h1 className="mx-auto max-w-[560px] text-3xl font-bold tracking-tight text-clinical-navy sm:text-4xl leading-snug">
-          Predictable pricing that scales with your practice
+          You pay for packets, not seats
         </h1>
         <p className="mt-4 text-slate-500 text-sm sm:text-base max-w-md mx-auto leading-relaxed">
-          No per-submission fees or surprise charges.
+          One denied surgery costs $15k–$50k. A flat platform fee plus a per-packet rate scales with the volume that
+          actually protects that revenue.
         </p>
         <div className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full border border-green-100 bg-green-50 px-4 py-1.5 text-xs font-semibold tracking-wide text-green-700 shadow-sm">
           First 2 weeks free — see it on a real chart.
@@ -33,7 +34,7 @@ export default function PricingPage() {
       </section>
 
       <section className="px-6 pb-16">
-        <div className="mx-auto grid max-w-4xl gap-8 sm:grid-cols-2">
+        <div className="mx-auto max-w-md">
           {PRICING_TIERS.map((tier) => {
             const paymentLinkUrl = getPaymentLinkUrl(tier);
             return (
@@ -51,23 +52,21 @@ export default function PricingPage() {
                     </span>
                   </div>
 
-                  {tier.id === "group" && (
-                    <div className="mt-4 rounded-lg bg-clinical-mist p-4">
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">
-                        ${GROUP_BASE_PRICE} base + ${GROUP_PRICE_PER_SURGEON}/mo per surgeon
-                      </p>
-                      <ul className="space-y-1 text-sm text-slate-600">
-                        {GROUP_WORKED_EXAMPLES.map((example) => (
-                          <li key={example.surgeonCount} className="flex justify-between">
-                            <span>{example.surgeonCount} surgeons</span>
-                            <span className="font-medium text-slate-800">
-                              ${example.price.toLocaleString()}/mo
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  <div className="mt-4 rounded-lg bg-clinical-mist p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">
+                      ${PLATFORM_FEE_MONTHLY} platform fee + ${PRICE_PER_CASE} per PA packet
+                    </p>
+                    <ul className="space-y-1 text-sm text-slate-600">
+                      {WORKED_EXAMPLES.map((example) => (
+                        <li key={example.cases} className="flex justify-between">
+                          <span>{example.cases} packets/mo</span>
+                          <span className="font-medium text-slate-800">
+                            ${example.price.toLocaleString()}/mo
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
                   <ul className="mt-8 space-y-3">
                     {tier.features.map((feature) => (

@@ -1,4 +1,4 @@
-import { groupPriceForSurgeons } from "@/lib/pricing";
+import { monthlyPriceForCases, PLATFORM_FEE_MONTHLY, PRICE_PER_CASE } from "@/lib/pricing";
 import type { PaCase, Surgeon } from "@/lib/supabase/types";
 
 export interface SurgeonUsage {
@@ -14,6 +14,8 @@ export interface BillingSummary {
   activeSurgeonCount: number;
   totalCases: number;
   perSurgeon: SurgeonUsage[];
+  platformFeeCents: number;
+  caseChargeCents: number;
   amountCents: number;
 }
 
@@ -51,6 +53,8 @@ export function summarizeUsage(
     activeSurgeonCount,
     totalCases,
     perSurgeon,
-    amountCents: groupPriceForSurgeons(activeSurgeonCount) * 100
+    platformFeeCents: PLATFORM_FEE_MONTHLY * 100,
+    caseChargeCents: PRICE_PER_CASE * totalCases * 100,
+    amountCents: monthlyPriceForCases(totalCases) * 100
   };
 }

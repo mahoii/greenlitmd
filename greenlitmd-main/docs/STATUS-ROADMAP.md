@@ -5,7 +5,57 @@ roadmap doc kept outside the repository — this repo is the source of truth for
 project status. Keep it updated in the same PR as any change that closes or
 reopens an item below.
 
-Last updated: 2026-07-22
+Last updated: 2026-08-14
+
+---
+
+## 2026-08-14 repricing + compliance truth-up
+
+Strategic review concluded $299/seat pricing was too low to reach $10k MRR without unrealistic customer counts, and that the landing page's "Is this HIPAA compliant? Yes" FAQ + "HIPAA-compliant infrastructure" badge were a false compliance claim with no BAA behind them (the 2026-07-19 entry below claims this badge was already removed — it was still live in `components/pricing/PricingSection.tsx` until this pass).
+
+- **Pricing model replaced.** `SOLO_PRICE` / `GROUP_BASE_PRICE` / `GROUP_PRICE_PER_SURGEON` / `groupPriceForSurgeons` deleted from `lib/pricing.ts`. New model: `PLATFORM_FEE_MONTHLY` ($500) + `PRICE_PER_CASE` ($50), via `monthlyPriceForCases()`. Single `PRICING_TIERS` entry (`"practice"`). `lib/billing/usage.ts` prices off `totalCases`, not `activeSurgeonCount` — headcount is now display-only. `pa_cases` was already one row per generated packet, so no schema migration was needed.
+- **Surgeon-count drift banner removed from `/billing`** (`acknowledgeBillingUpdate` / `last_acknowledged_surgeon_count` still exist in `lib/actions/org.ts` / the `organizations` table, now unused — headcount no longer drives price so there's nothing to drift).
+- **Stripe env var renamed:** `NEXT_PUBLIC_STRIPE_LINK_SOLO` / `NEXT_PUBLIC_STRIPE_LINK_GROUP` → `NEXT_PUBLIC_STRIPE_LINK_PLATFORM` (covers the $500 platform fee only; per-packet charges are invoiced separately — still no Stripe SDK/webhooks/metered subscription).
+- **False HIPAA claim actually removed** from `PricingSection.tsx` (FAQ + trust badge), replaced with factual de-identification language.
+- **New `/security` page** — the "how we handle your data" sheet: what's received, what's never stored, the two-layer de-id pipeline, subprocessors, and an explicit BAA posture (no BAA offered today). Linked from a footer now shared across every page via `app/layout.tsx` (previously the footer rendered only on `/`).
+- **Positioning shift:** hero and "How It Works" now name denial recovery/appeals (already-shipped `AppealSupportPanel` / `generate-appeal-talking-points`) alongside prevention, not just staff-time savings. FAQ no longer says appeal support is "on the roadmap."
+- **Known gap, not fixed here:** Team-tier metering (and now revenue) silently no-ops if `PA_HASH_SALT` is unset — flagged in `.claude/CLAUDE.md`, worth its own fix given case-based pricing now depends on it.
+
+## 2026-08-14 (later same day) — BAA disclosure walked back, upload ack added
+
+Two independent adversarial reviews (a roast council and a Gemini review) flagged the `/security`
+page's public "we do not have a signed BAA yet" sentence, added earlier the same day, as a mistake —
+not because it was false, but because publishing a compliance gap on a Google-indexable page is a
+self-inflicted disqualifier: a practice's compliance officer treats it as a binary no, before any
+sales conversation happens. The fix is not to claim compliance (that would recreate the original
+false-attestation problem) — it's to say nothing public about BAA status at all. Silence isn't a
+claim.
+
+- Removed the BAA-posture section and FAQ clause from `/security` and `PricingSection.tsx`. Both
+  surfaces now describe data handling factually with zero compliance attestation and zero mention
+  of BAA status. **If you're reading this and considering restoring transparency copy about the BAA
+  gap: don't put it back on a public page** — that's the exact mistake being corrected.
+- First pass added a one-time, click-through acknowledgment modal before a real chart was
+  accepted. A second adversarial round (contrarian + buyer roleplay + legal-precedent research)
+  killed that design: a client-side, unlogged, once-per-browser click-through creates no audit
+  trail tying a specific acknowledgment to a specific user/upload, and — more importantly —
+  no precedent supports point-of-use disclosure substituting for a missing BAA. HIPAA's BAA
+  requirement (45 CFR §164.502(e)/§164.308(b)) is a *precondition* to disclosure, not a consent
+  mechanism; OCR enforcement (Raleigh Orthopaedic $750k 2015, North Memorial $1.55M 2016)
+  penalizes BAA-less PHI transmission with no carve-out for "we told them first." A timestamped
+  in-app "we know we don't have a BAA" admission reads as evidence of a knowing violation, not
+  a safeguard.
+- **Real chart upload is now hard-blocked, not disclosed-and-proceed.** `selectChartFile` in
+  `app/builder/BuilderClient.tsx` never accepts a real file — it shows an explanatory modal
+  ("real chart uploads are paused" / no BAA yet / try the sandbox or contact us) with a single
+  dismiss button and no path to continue with the file. The sandbox/demo path (`?demo=true`,
+  test-case profile clicks) is completely untouched. This stays in place until the BAA work in
+  `docs/BAA-READINESS.md` is done — do not reintroduce a click-through-to-proceed pattern as the
+  fix for this; gate access, don't disclose past it.
+- New `docs/BAA-READINESS.md` — the actual checklist (Anthropic, Supabase, Vercel, Resend, Upstash
+  BAAs; customer BAA template; `AUDIT-FINDINGS.md` A5 PHI-in-Redis cleanup). Intentionally not
+  linked from any public page. **Outreach should not start until that list is substantively done** —
+  this pass fixed the messaging, not the underlying compliance gap.
 
 ---
 

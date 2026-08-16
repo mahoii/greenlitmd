@@ -136,6 +136,8 @@ function UploadPage({ surgeons }: { surgeons: BuilderSurgeon[] }) {
   const [isLoading, setIsLoading] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Holds a real chart file that's pending the one-time PHI-handling acknowledgment.
+  const [pendingAckFile, setPendingAckFile] = useState<File | null>(null);
 
   // Surgeon selection is only required for real (non-demo, non-sandbox) submissions
   // by a Team-tier org — solo users and demo/sandbox flows have no surgeon list.
@@ -181,10 +183,18 @@ function UploadPage({ surgeons }: { surgeons: BuilderSurgeon[] }) {
       return;
     }
 
-    // A real file upload cancels demo mode and clears any active test case
-    setIsDemoMode(false);
-    setActiveTestCase(null);
-    setFile(selectedFile);
+    // Real chart uploads are paused until a signed BAA is in place — a
+    // click-through disclosure isn't a substitute for one (HIPAA's BAA
+    // requirement is a precondition to disclosure, not a consent mechanism,
+    // and an in-app "we know we don't have one" admission is closer to
+    // evidence of a knowing violation than a safeguard). Block here rather
+    // than disclose-and-proceed. Show the explanation once per browser so
+    // repeat attempts during this pause aren't met with total silence.
+    setPendingAckFile(selectedFile);
+  }
+
+  function dismissUploadBlocked() {
+    setPendingAckFile(null);
   }
 
   async function triggerTestCase(key: ProfileKey) {
@@ -364,6 +374,46 @@ function UploadPage({ surgeons }: { surgeons: BuilderSurgeon[] }) {
 
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-[#F8F9FB]">
+      {pendingAckFile ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="phi-blocked-title"
+            className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl"
+          >
+            <h2 id="phi-blocked-title" className="text-lg font-semibold text-clinical-navy">
+              Real chart uploads are paused
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              We don&apos;t have a signed Business Associate Agreement in place yet, so we&apos;re not accepting
+              real patient charts right now — a chart would reach our server intact before de-identification runs,
+              and that requires a BAA first.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Try the{" "}
+              <Link href="/builder?demo=true" className="text-clinical-blue underline">
+                sandbox demo
+              </Link>{" "}
+              with synthetic charts, or{" "}
+              <a href="mailto:kamari@orthren.com" className="text-clinical-blue underline">
+                contact us
+              </a>{" "}
+              about timeline.
+            </p>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={dismissUploadBlocked}
+                className="rounded-md bg-clinical-navy px-4 py-2 text-sm font-semibold text-white hover:bg-clinical-blue"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {isPublicDemo && <DemoModeBar />}
       <section className="mx-auto flex min-h-[calc(100vh-3.5rem)] w-full max-w-5xl flex-col justify-center px-6 py-10">
 
