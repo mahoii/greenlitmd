@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { ExtractedChartDataWithValidation } from "@/lib/types";
-import { regenerationRateLimiter } from "@/lib/rate-limit";
+import { regenerationRateLimiter, rateLimitKey } from "@/lib/rate-limit";
 import { letterSystemPrompt } from "@/lib/letter-system-prompt";
 import { buildBmiAsaPromptLines } from "@/lib/letter-postprocess";
 import { createSupabaseAuthServerClient } from "@/lib/supabase/server";
@@ -34,7 +34,7 @@ function isValidRequestBody(body: unknown): body is {
 export async function POST(request: Request) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "127.0.0.1";
-    const { success } = await regenerationRateLimiter.limit(ip);
+    const { success } = await regenerationRateLimiter.limit(rateLimitKey(ip));
     if (!success) {
       return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
     }

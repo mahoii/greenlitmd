@@ -26,6 +26,13 @@ jobs:
       RESEND_API_KEY: placeholder
       ADMIN_SECRET: placeholder
       UNSUBSCRIBE_SECRET: placeholder
+      # lib/env-guard.ts asserts this at module load (imported by
+      # lib/rate-limit.ts, which nearly every route imports) -- a placeholder
+      # is safe here since CI touches no real patient data, but production
+      # MUST hold a real high-entropy value: it salts hashPatientName() and
+      # rateLimitKey(), and a weak/known salt makes the small patient-name
+      # keyspace dictionary-attackable (see lib/hash-patient-name.ts).
+      PA_HASH_SALT: placeholder
     steps:
       - name: Checkout
         uses: actions/checkout@v4

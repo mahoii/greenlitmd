@@ -1038,6 +1038,7 @@ export default function ReviewPage() {
               payerName={data.payerName}
               paScore={earnedScore / 10}
               setToast={showToast}
+              isDemo={Boolean(data.isDemo)}
             />
           </div>
         </div>
@@ -1774,11 +1775,13 @@ function FeedbackWidget({
   payerName,
   paScore,
   setToast,
+  isDemo,
 }: {
   cptCode: string;
   payerName: string;
   paScore: number;
   setToast: (msg: string) => void;
+  isDemo: boolean;
 }) {
   const [outcome, setOutcome] = useState<'approved' | 'denied' | 'pending' | null>(null);
   const [denialReason, setDenialReason] = useState('');
@@ -1787,6 +1790,11 @@ function FeedbackWidget({
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(selectedOutcome: 'approved' | 'denied' | 'pending', reason?: string) {
+    if (isDemo) {
+      setSubmitted(true);
+      setToast("Feedback isn't recorded for demo charts.");
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
     try {

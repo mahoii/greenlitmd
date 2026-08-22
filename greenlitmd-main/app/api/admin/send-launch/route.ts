@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSignupEmailsByStage, updateEmailStageForEmails } from "@/lib/supabase/server";
 import { sendLaunchEmail } from "@/lib/resend";
-import { adminRateLimiter } from "@/lib/rate-limit";
+import { adminRateLimiter, rateLimitKey } from "@/lib/rate-limit";
 import { isValidAdminSecret } from "@/lib/admin-auth";
 import crypto from "crypto";
 
@@ -21,7 +21,7 @@ function sleep(ms: number) {
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "127.0.0.1";
-  const { success } = await adminRateLimiter.limit(ip);
+  const { success } = await adminRateLimiter.limit(rateLimitKey(ip));
   if (!success) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }

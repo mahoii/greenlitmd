@@ -1,7 +1,30 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { createHmac } from "crypto";
+import { requireEnv } from "@/lib/env-guard";
 
 const redis = Redis.fromEnv();
+
+/**
+ * Rate-limit keys are HMAC'd, never the raw IP — a bare IP is a HIPAA Safe
+ * Harbor identifier (#15) and would otherwise sit in Upstash tied to
+ * PA-generation activity indefinitely. requireEnv("PA_HASH_SALT") already
+ * throws at import time (lib/env-guard.ts), so no fallback path is needed
+ * here — every route that imports a limiter from this file guarantees the
+ * salt is present before this function can ever be called.
+ *
+ * Known limitation, not a full anonymization guarantee: IPv4 is only a ~4.3B
+ * keyspace, so if PA_HASH_SALT itself ever leaks, the entire IP mapping is
+ * brute-forceable offline in hours on commodity hardware (HHS de-id guidance
+ * treats a keyed/HMAC'd identifier as Expert-Determination territory, not
+ * Safe Harbor, for exactly this reason). This still meaningfully raises the
+ * bar over storing the raw IP directly in Upstash — the two secrets (salt,
+ * Upstash access) are separate trust boundaries — but is a mitigation, not
+ * a guarantee, and depends on PA_HASH_SALT never being logged or exposed.
+ */
+export function rateLimitKey(ip: string): string {
+  return createHmac("sha256", requireEnv("PA_HASH_SALT")).update(ip).digest("hex");
+}
 
 // Separate budgets per route class instead of one shared 5-req/60s bucket for
 // the entire product. Previously every user-facing route imported the same

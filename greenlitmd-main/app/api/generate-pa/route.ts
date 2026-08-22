@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
-import { generationRateLimiter } from "@/lib/rate-limit";
+import { generationRateLimiter, rateLimitKey } from "@/lib/rate-limit";
 import { createSupabaseAuthServerClient, createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentMembership } from "@/lib/auth/org";
 import { hashPatientName } from "@/lib/hash-patient-name";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   let distinctId = "server";
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "127.0.0.1";
-    const { success } = await generationRateLimiter.limit(ip);
+    const { success } = await generationRateLimiter.limit(rateLimitKey(ip));
     if (!success) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
@@ -175,6 +175,11 @@ export async function POST(request: Request) {
     // Team-tier usage metering — metadata only (see lib/hash-patient-name.ts),
     // never the letter, chart text, or raw patient name. A metering failure
     // must never fail the actual PA generation the user is waiting on.
+    // hashPatientName() can no longer throw for a missing PA_HASH_SALT here —
+    // lib/env-guard.ts (imported transitively via lib/rate-limit.ts, which
+    // this route already imports) asserts the salt at boot, so a missing
+    // salt is now a startup failure, not a silently-swallowed unbilled case.
+    // See A5, AUDIT-FINDINGS.md.
     if (membership && surgeonId) {
       try {
         const db = createSupabaseServerClient();

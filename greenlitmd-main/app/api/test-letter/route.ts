@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateLetterFromExtraction, type RequestDetails } from "@/lib/pa-pipeline";
 import type { ExtractedChartData, Validation } from "@/lib/types";
-import { adminRateLimiter } from "@/lib/rate-limit";
+import { adminRateLimiter, rateLimitKey } from "@/lib/rate-limit";
 import { isValidAdminSecret } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "127.0.0.1";
-  const { success } = await adminRateLimiter.limit(ip);
+  const { success } = await adminRateLimiter.limit(rateLimitKey(ip));
   if (!success) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "127.0.0.1";
-  const { success } = await adminRateLimiter.limit(ip);
+  const { success } = await adminRateLimiter.limit(rateLimitKey(ip));
   if (!success) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }

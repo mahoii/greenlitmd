@@ -47,7 +47,7 @@ Format: sections A/B (and E1) carry the full 6-part structure (observation / why
 5. **Blast radius** — regenerate-letter content fidelity + false warnings. Prompt-content change ⇒ tiered re-run required.
 6. **Confidence** — **verified** (both strip lists read first-hand; `extraction_warnings` attachment at `app/api/generate-pa/route.ts:102-105` independently re-read and confirmed by the adversarial grading pass — sub-claim upgraded to **verified**).
 
-### A5. `/api/feedback` persists un-deidentified clinician free text to Redis — the one server-side persistence of user clinical text — **verified**
+### A5. `/api/feedback` persists un-deidentified clinician free text to Redis — the one server-side persistence of user clinical text — **remediated**
 
 1. **Observation** — `app/api/feedback/route.ts:55-67`: `denialReason` (clinician-typed free text) is stored verbatim and permanently via `redis.lpush("pa_outcomes", …)` with no `deidentify()` pass and no length cap — directly under a comment claiming "No Patient Name, No DOB to ensure zero PHI storage." Contrast `generate-appeal-talking-points`, which caps its denial_reason at 5,000 chars and de-identifies it before use (per security agent, `route.ts:156-158, 177`).
 2. **Why it's wrong** — a pasted denial letter routinely contains patient name/DOB/MRN; this lands raw in Upstash. Violates the product posture ("no PHI stored") and the de-id invariant. Unbounded list growth is a secondary issue.
@@ -55,6 +55,7 @@ Format: sections A/B (and E1) carry the full 6-part structure (observation / why
 4. **Proposed solution** — run `deidentify()` on `denialReason` before persisting + cap length (5,000 chars, matching the appeal route). Alternative (drop the field) rejected: denial reasons are core product-learning signal.
 5. **Blast radius** — feedback route only; no prompts touched ⇒ no SOURCE LOCK re-run. Existing Redis entries may already contain PHI — **flag for a one-time scrub decision (only you can authorize touching prod data).**
 6. **Confidence** — **verified** (read first-hand).
+7. **Remediation status** — the de-id + 5k cap landed in `78b9f03` (pre-existing on `main`). This pass (2026-08-21) closed the remaining gaps: `pa_outcomes` moved from a single immortal key to `pa_outcomes:<YYYY-MM-DD>` buckets with a 24-month `expire()` (`scripts/check-redis-ttls.ts` asserts no key anywhere has `TTL == -1`); `payerName`/`cptCode` are now shape-validated (reject, not redact — deidentify() would mask legitimate payer names); demo sessions (`data.isDemo`) no longer POST to `/api/feedback` at all (closes D2); all Redis rate-limit keys are now HMAC'd (`lib/rate-limit.ts:rateLimitKey`) instead of storing the raw client IP; `PA_HASH_SALT` now fails closed at boot (`lib/env-guard.ts`) instead of being silently swallowed at the `generate-pa` metering call site. **Still open, requires your authorization:** `scripts/scrub-pa-outcomes.ts` exists (dry-run by default) to re-deidentify/flag entries written to the legacy `pa_outcomes` key before `78b9f03` — it has not been run.
 
 ---
 

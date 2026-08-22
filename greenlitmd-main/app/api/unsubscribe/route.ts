@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyUnsubscribeToken } from "@/lib/resend";
 import { unsubscribeEmail } from "@/lib/supabase/server";
-import { lightRateLimiter } from "@/lib/rate-limit";
+import { lightRateLimiter, rateLimitKey } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 // AUDIT-FINDINGS.md.
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "127.0.0.1";
-  const { success: allowed } = await lightRateLimiter.limit(ip);
+  const { success: allowed } = await lightRateLimiter.limit(rateLimitKey(ip));
   if (!allowed) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }

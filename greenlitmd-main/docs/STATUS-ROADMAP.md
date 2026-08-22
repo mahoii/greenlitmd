@@ -19,7 +19,7 @@ Strategic review concluded $299/seat pricing was too low to reach $10k MRR witho
 - **False HIPAA claim actually removed** from `PricingSection.tsx` (FAQ + trust badge), replaced with factual de-identification language.
 - **New `/security` page** — the "how we handle your data" sheet: what's received, what's never stored, the two-layer de-id pipeline, subprocessors, and an explicit BAA posture (no BAA offered today). Linked from a footer now shared across every page via `app/layout.tsx` (previously the footer rendered only on `/`).
 - **Positioning shift:** hero and "How It Works" now name denial recovery/appeals (already-shipped `AppealSupportPanel` / `generate-appeal-talking-points`) alongside prevention, not just staff-time savings. FAQ no longer says appeal support is "on the roadmap."
-- **Known gap, not fixed here:** Team-tier metering (and now revenue) silently no-ops if `PA_HASH_SALT` is unset — flagged in `.claude/CLAUDE.md`, worth its own fix given case-based pricing now depends on it.
+- **Fixed in a later pass (A5 remediation, 2026-08-21):** `PA_HASH_SALT` is now asserted at import time via `lib/env-guard.ts` (imported by `lib/rate-limit.ts`, which nearly every route imports), so a missing salt fails the boot instead of silently no-oping metering/billing. `rateLimitKey()` and `hashPatientName()` also each fail closed independently at call time. `.github/workflows/ci.yml` carries a placeholder value for CI only; production must hold a real high-entropy value (confirmed set in Vercel Production as of this pass).
 
 ## 2026-08-14 (later same day) — BAA disclosure walked back, upload ack added
 

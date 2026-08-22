@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { regenerationRateLimiter } from "@/lib/rate-limit";
+import { regenerationRateLimiter, rateLimitKey } from "@/lib/rate-limit";
 import { callAnthropicWithRetry } from "@/lib/anthropic";
 import { createSupabaseAuthServerClient } from "@/lib/supabase/server";
 import { getPayerRule, normalizePayerName, buildPayerInjectionBlock } from "@/lib/payer-rules";
@@ -112,7 +112,7 @@ function deidentifySanitizedChart(chart: SanitizedAppealChart, state: Deidentify
 export async function POST(request: Request) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "127.0.0.1";
-    const { success } = await regenerationRateLimiter.limit(ip);
+    const { success } = await regenerationRateLimiter.limit(rateLimitKey(ip));
     if (!success) {
       return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
     }
