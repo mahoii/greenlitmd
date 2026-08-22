@@ -5,7 +5,7 @@ roadmap doc kept outside the repository — this repo is the source of truth for
 project status. Keep it updated in the same PR as any change that closes or
 reopens an item below.
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 ---
 
@@ -25,7 +25,7 @@ Strategic review concluded $299/seat pricing was too low to reach $10k MRR witho
 
 Closed audit finding A5 (`AUDIT-FINDINGS.md`) end to end, including two rounds of adversarial review (an internal roast council, then two independent Gemini review passes).
 
-- **`pa_outcomes` retention.** Moved from one immortal Redis list key to per-day buckets (`pa_outcomes:<YYYY-MM-DD>`), each carrying a 24-month `expire()`. Write is pipelined (`redis.pipeline()`) so `lpush`/`ltrim`/`expire` land as one atomic HTTP round-trip — a caught-in-review bug where three sequential `await` calls could crash between `lpush` and `expire` and silently recreate an immortal key. Constants (`PA_OUTCOMES_TTL_SECONDS`, `PA_OUTCOMES_MAX_PER_DAY`) live in `lib/pa-outcomes-retention.ts`, shared with the scrub script below so the two can't drift. `scripts/check-redis-ttls.ts` (new, unrun) asserts no Redis key anywhere returns `TTL == -1`.
+- **`pa_outcomes` retention.** Moved from one immortal Redis list key to per-day buckets (`pa_outcomes:<YYYY-MM-DD>`), each carrying a 24-month `expire()`. Write is pipelined (`redis.pipeline()`) so `lpush`/`ltrim`/`expire` land as one atomic HTTP round-trip — a caught-in-review bug where three sequential `await` calls could crash between `lpush` and `expire` and silently recreate an immortal key. Constants (`PA_OUTCOMES_TTL_SECONDS`, `PA_OUTCOMES_MAX_PER_DAY`) live in `lib/pa-outcomes-retention.ts`, shared with the scrub script below so the two can't drift. `scripts/check-redis-ttls.ts` asserts no Redis key anywhere returns `TTL == -1` — also blocked, same reason (see below).
 - **`payerName`/`cptCode` validation** added to `/api/feedback` — length cap + reject identifier-shaped (4+ digit) payer names, CPT regex. Reject-not-redact: running `deidentify()` on `payerName` would mask legitimate multi-word payer names via the fail-closed residual pass.
 - **Demo sessions no longer POST feedback.** `FeedbackWidget` (`app/review/page.tsx`) now takes an `isDemo` prop and short-circuits before the network call — closes D2 from `AUDIT-FINDINGS.md`.
 - **Rate-limit keys HMAC'd.** `lib/rate-limit.ts`'s `rateLimitKey()` replaces the raw client IP (a HIPAA Safe Harbor identifier) across all 13 `.limit()` call sites in `app/api/**`. Documented as a mitigation, not a full anonymization guarantee — IPv4 is only a ~4.3B keyspace, brute-forceable offline if `PA_HASH_SALT` itself ever leaks.
