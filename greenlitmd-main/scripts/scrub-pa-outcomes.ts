@@ -5,8 +5,8 @@
  * env var are set. See A5, AUDIT-FINDINGS.md.
  *
  * Usage:
- *   node -r dotenv/config scripts/scrub-pa-outcomes.ts                # dry run, reports only
- *   PA_OUTCOMES_SCRUB_CONFIRM=yes node -r dotenv/config scripts/scrub-pa-outcomes.ts --apply
+ *   npx tsx --env-file=.env.local scripts/scrub-pa-outcomes.ts                # dry run, reports only
+ *   PA_OUTCOMES_SCRUB_CONFIRM=yes npx tsx --env-file=.env.local scripts/scrub-pa-outcomes.ts --apply
  *
  * This script only exists to be reviewed and run manually by a human who has
  * decided to touch prod data — it is never invoked from application code or CI.
@@ -88,18 +88,10 @@ async function main() {
   console.log(`  payerName flagged (identifier-shaped or oversized): ${needsPayerRejection}`);
   console.log(`  cptCode not matching CPT shape: ${needsCptRejection}`);
 
-  if (!APPLY) {
-    console.log("\nDry run only — no writes made. Re-run with --apply (+ confirm env var) to persist.");
-    return;
-  }
-
-  // Apply: redistribute each scrubbed record into the same per-day bucket
-  // scheme app/api/feedback/route.ts writes to (pa_outcomes:<YYYY-MM-DD>),
-  // each carrying a real TTL, then delete the legacy key entirely. Rewriting
-  // legacyKey in place and adding a bare expire() (the initially-proposed
-  // fix) would still leave one oversized immortal-shaped key outside the
-  // retention scheme this pass introduced — redistributing is no more work
-  // and leaves no legacy shape to reason about going forward.
+  // Bucket by day up front (both in dry-run and apply) — this is a pure,
+  // in-memory grouping and reports the real shape of what --apply will do,
+  // including whether any bucket would exceed PA_OUTCOMES_MAX_PER_DAY before
+  // a single write happens.
   const byDay = new Map<string, string[]>();
   for (let i = 0; i < rewritten.length; i++) {
     const record: LegacyRecord = JSON.parse(rewritten[i]);
@@ -112,6 +104,35 @@ async function main() {
     byDay.get(key)!.push(rewritten[i]);
   }
 
+  console.log(`\nDay-bucket distribution (cap: ${PA_OUTCOMES_MAX_PER_DAY}/day):`);
+  const overflowing: string[] = [];
+  for (const [dayKey, entries] of byDay) {
+    const over = entries.length > PA_OUTCOMES_MAX_PER_DAY;
+    if (over) overflowing.push(dayKey);
+    console.log(`  ${dayKey}: ${entries.length}${over ? "  <-- EXCEEDS CAP, LTRIM WOULD DROP " + (entries.length - PA_OUTCOMES_MAX_PER_DAY) + " ENTRY(IES)" : ""}`);
+  }
+
+  if (!APPLY) {
+    console.log("\nDry run only — no writes made. Re-run with --apply (+ confirm env var) to persist.");
+    return;
+  }
+
+  if (overflowing.length > 0 && process.env.PA_OUTCOMES_SCRUB_ALLOW_TRUNCATION !== "yes") {
+    console.error(
+      `\nRefusing to apply: ${overflowing.length} day-bucket(s) exceed PA_OUTCOMES_MAX_PER_DAY ` +
+        `and LTRIM would silently drop entries after the legacy key is deleted. ` +
+        `Set PA_OUTCOMES_SCRUB_ALLOW_TRUNCATION=yes to proceed anyway, or raise the cap first.`
+    );
+    process.exit(1);
+  }
+
+  // Apply: redistribute each scrubbed record into the same per-day bucket
+  // scheme app/api/feedback/route.ts writes to (pa_outcomes:<YYYY-MM-DD>),
+  // each carrying a real TTL, then delete the legacy key entirely. Rewriting
+  // legacyKey in place and adding a bare expire() (the initially-proposed
+  // fix) would still leave one oversized immortal-shaped key outside the
+  // retention scheme this pass introduced — redistributing is no more work
+  // and leaves no legacy shape to reason about going forward.
   for (const [dayKey, entries] of byDay) {
     const pipeline = redis.pipeline();
     // Newest-first to match lpush's prepend semantics on the live write path.

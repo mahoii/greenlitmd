@@ -3,7 +3,7 @@
  * or in CI against a non-prod Redis to catch a regression back to unbounded
  * retention. See A5, AUDIT-FINDINGS.md.
  *
- * Usage: node -r dotenv/config scripts/check-redis-ttls.ts
+ * Usage: npx tsx --env-file=.env.local scripts/check-redis-ttls.ts
  */
 import { Redis } from "@upstash/redis";
 

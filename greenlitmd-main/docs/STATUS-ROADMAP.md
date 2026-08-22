@@ -5,7 +5,7 @@ roadmap doc kept outside the repository — this repo is the source of truth for
 project status. Keep it updated in the same PR as any change that closes or
 reopens an item below.
 
-Last updated: 2026-08-14
+Last updated: 2026-08-21
 
 ---
 
@@ -19,7 +19,19 @@ Strategic review concluded $299/seat pricing was too low to reach $10k MRR witho
 - **False HIPAA claim actually removed** from `PricingSection.tsx` (FAQ + trust badge), replaced with factual de-identification language.
 - **New `/security` page** — the "how we handle your data" sheet: what's received, what's never stored, the two-layer de-id pipeline, subprocessors, and an explicit BAA posture (no BAA offered today). Linked from a footer now shared across every page via `app/layout.tsx` (previously the footer rendered only on `/`).
 - **Positioning shift:** hero and "How It Works" now name denial recovery/appeals (already-shipped `AppealSupportPanel` / `generate-appeal-talking-points`) alongside prevention, not just staff-time savings. FAQ no longer says appeal support is "on the roadmap."
-- **Fixed in a later pass (A5 remediation, 2026-08-21):** `PA_HASH_SALT` is now asserted at import time via `lib/env-guard.ts` (imported by `lib/rate-limit.ts`, which nearly every route imports), so a missing salt fails the boot instead of silently no-oping metering/billing. `rateLimitKey()` and `hashPatientName()` also each fail closed independently at call time. `.github/workflows/ci.yml` carries a placeholder value for CI only; production must hold a real high-entropy value (confirmed set in Vercel Production as of this pass).
+- **Known gap, fixed 2026-08-21 (see entry below):** Team-tier metering (and now revenue) silently no-oped if `PA_HASH_SALT` was unset.
+
+## 2026-08-21 A5 remediation — pa_outcomes retention, IP hashing, salt fail-closed
+
+Closed audit finding A5 (`AUDIT-FINDINGS.md`) end to end, including two rounds of adversarial review (an internal roast council, then two independent Gemini review passes).
+
+- **`pa_outcomes` retention.** Moved from one immortal Redis list key to per-day buckets (`pa_outcomes:<YYYY-MM-DD>`), each carrying a 24-month `expire()`. Write is pipelined (`redis.pipeline()`) so `lpush`/`ltrim`/`expire` land as one atomic HTTP round-trip — a caught-in-review bug where three sequential `await` calls could crash between `lpush` and `expire` and silently recreate an immortal key. Constants (`PA_OUTCOMES_TTL_SECONDS`, `PA_OUTCOMES_MAX_PER_DAY`) live in `lib/pa-outcomes-retention.ts`, shared with the scrub script below so the two can't drift. `scripts/check-redis-ttls.ts` (new, unrun) asserts no Redis key anywhere returns `TTL == -1`.
+- **`payerName`/`cptCode` validation** added to `/api/feedback` — length cap + reject identifier-shaped (4+ digit) payer names, CPT regex. Reject-not-redact: running `deidentify()` on `payerName` would mask legitimate multi-word payer names via the fail-closed residual pass.
+- **Demo sessions no longer POST feedback.** `FeedbackWidget` (`app/review/page.tsx`) now takes an `isDemo` prop and short-circuits before the network call — closes D2 from `AUDIT-FINDINGS.md`.
+- **Rate-limit keys HMAC'd.** `lib/rate-limit.ts`'s `rateLimitKey()` replaces the raw client IP (a HIPAA Safe Harbor identifier) across all 13 `.limit()` call sites in `app/api/**`. Documented as a mitigation, not a full anonymization guarantee — IPv4 is only a ~4.3B keyspace, brute-forceable offline if `PA_HASH_SALT` itself ever leaks.
+- **`PA_HASH_SALT` now fails closed at boot.** New `lib/env-guard.ts` asserts it at module-import time (imported transitively by `lib/rate-limit.ts`, which nearly every route imports) — previously a missing salt was caught-and-swallowed at the `generate-pa` metering call site, meaning cases went unbilled under a 200 response. `.github/workflows/ci.yml` carries a placeholder value for CI only (matches the existing pattern for `Redis.fromEnv()` and other module-load-time clients); production holds a real high-entropy value (audited via Vercel MCP and set this pass).
+- **Prod scrub tooling, BLOCKED (not unrun — target instance gone).** `scripts/scrub-pa-outcomes.ts` re-deidentifies/flags legacy `pa_outcomes` entries written before the base A5 fix (commit `78b9f03`) and redistributes them into the new per-day buckets, deleting the legacy key. Dry-run by default; requires `--apply` + a confirmation env var, and now also refuses to apply if any day-bucket would exceed `PA_OUTCOMES_MAX_PER_DAY` (silent `LTRIM` truncation) unless `PA_OUTCOMES_SCRUB_ALLOW_TRUNCATION=yes` is set. Invocation docs fixed to `npx tsx --env-file=.env.local scripts/<name>.ts` (previously referenced `dotenv`/`ts-node`, neither installed). 2026-08-22 attempt to run against prod found `.env.local`'s `UPSTASH_REDIS_REST_URL` (`aware-kingfish-135957.upstash.io`) is NXDOMAIN — that Upstash instance was deleted. Blocked on a current prod Upstash URL/token before this can run at all.
+- **Verified:** `npm run typecheck` clean; `npm run build` fails without `PA_HASH_SALT` set and succeeds with it (confirms the fail-closed guard actually works end to end, not just at the unit level).
 
 ## 2026-08-14 (later same day) — BAA disclosure walked back, upload ack added
 
